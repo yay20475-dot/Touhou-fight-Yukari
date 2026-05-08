@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reimu & Marisa & Sakuya vs Yukari - Special Bomb Edition</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        canvas { display: block; background: #050510; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; color: white; 
+            pointer-events: none; text-shadow: 2px 2px 4px #000;
+        }
+        #bomb-btn, #switch-btn {
+            position: absolute; border-radius: 50%; border: 2px solid white;
+            color: white; font-weight: bold; display: flex;
+            align-items: center; justify-content: center; z-index: 10;
+            user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        #bomb-btn {
+            bottom: 30px; right: 30px; width: 80px; height: 80px;
+            background: rgba(255, 0, 0, 0.6); box-shadow: 0 0 15px red;
+        }
+        #switch-btn {
+            bottom: 30px; left: 30px; width: 80px; height: 80px;
+            background: rgba(0, 255, 100, 0.4); box-shadow: 0 0 15px green;
+        }
+        #start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); color: white; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; text-align: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="start-overlay">
+        <h1 style="color: #ff44ff;">TOUHOU FIGHT - SPECIAL BOMB</h1>
+        <p> Reimu & Marisa & Sakuya vs Yukari</p>
+        <div style="margin-top: 20px; padding: 15px; border: 2px solid #fff;">TAP TO START</div>
+    </div>
+
+    <div id="ui">
+        Boss HP: <span id="hp-val">5000</span><br>
+        Char: <span id="char-name" style="color: #44aaff;">REIMU</span><br>
+        Bombs: <span id="bomb-val">3</span>
+    </div>
+
+    <div id="switch-btn">SWITCH</div>
+    <div id="bomb-btn">BOMB</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+const imgReimu = new Image();
+const imgMarisa = new Image();
+const imgYukari = new Image();
+const imgSakuya = new Image();
+
+imgReimu.src = "https://i.ibb.co/twm06KF3/image.png";
+imgMarisa.src = "https://i.ibb.co/bYzf4KP/image.png";
+imgYukari.src = "https://i.ibb.co/p63jKZs1/image.png";
+imgSakuya.src = "https://i.ibb.co/bjfQGhQv/image.png";
+
+let timeStop = 0;
+
+let invisiblePhase = false;
+
+        let gameStarted = false, currentPlayer = "reimu", isGameOver = false;
+
+let player = {
+    x: canvas.width/2,
+    y: canvas.height - 150,
+    r: 1,
+    visualR: 15,
+    bombs: 3,
+    invuln: 0
+};
+
+        let boss = { x: canvas.width/2, y: 150, hp: 5000, maxHp: 5000, r: 35 };
+        let enemyBullets = [], playerBullets = [], lasers = [], bombEffects = [];
+        let bombTimer = 0, shake = 0, frame = 0;
+
+function getHitbox() {
+    return currentPlayer === "reimu" ? 1 : 1.5;
+}
+
+        class Bullet {
+            constructor(x, y, angle, speed, color, radius = 4, damage = 1.8, isHoming = false) {
+                this.x = x; this.y = y; this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                this.color = color; this.radius = radius; this.damage = damage; this.isHoming = isHoming;
+            }
+            update() {
+                if (this.isHoming) {
+                    let angleToBoss = Math.atan2(boss.y - this.y, boss.x - this.x);
+                    this.vx += Math.cos(angleToBoss) * 0.5;
+                    this.vy += Math.sin(angleToBoss) * 0.5;
+                    let speed = Math.hypot(this.vx, this.vy);
+                    if (speed > 8) { this.vx *= 8/speed; this.vy *= 8/speed; }
+                }
+                this.x += this.vx; this.y += this.vy;
+            }
+            draw() {
+
+if (currentPlayer === "sakuya" && this.isHoming) {
+
+    ctx.save();
+
+    let angle = Math.atan2(this.vy, this.vx);
+    ctx.translate(this.x, this.y);
+    ctx.rotate(angle);
+
+    // 🔷 thân dao (xanh biển)
+    ctx.fillStyle = "#3399ff";
+    ctx.fillRect(-14, -2, 24, 4);
+
+    // 🔷 đầu dao (dài + nhọn hơn)
+    ctx.beginPath();
+    ctx.moveTo(10, -4);
+    ctx.lineTo(18, 0);
+    ctx.lineTo(10, 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // ✝️ thanh dọc (thập giá ngược)
+    ctx.fillRect(-10, -10, 4, 20);
+
+    // ✨ lõi sáng
+    ctx.fillStyle = "white";
+    ctx.fillRect(-14, -1, 24, 2);
+    ctx.fillRect(-9, -7, 2, 14);
+
+    // 🌟 glow xanh nhẹ
+    ctx.strokeStyle = "rgba(100,180,255,0.7)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-14, -2, 24, 4);
+
+    ctx.restore();
+
+    return;
+}
+
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+                if (this.isHoming) { // Hiệu ứng hào quang cho Orb của Reimu
+                    ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+                }
+            }
+        }
+
+        class Laser {
+    constructor() {
+        this.reset();
+    }
+
+    reset() {
+        this.timer = 0;
+
+        // 🎲 random hướng
+        this.side = Math.random() < 0.5 ? "left" : "right";
+
+        this.currentX = (this.side === "left") ? -300 : canvas.width + 300;
+        this.speed = (this.side === "left") ? 5 : -5;
+
+        this.targetY = player.y;
+        this.active = true;
+        this.firing = false;
+    }
+
+    update() {
+        this.timer++;
+
+        // lock vị trí player lúc bắt đầu
+        if (this.timer === 1) {
+            this.targetY = player.y;
+        }
+
+        // bắt đầu bắn ngay
+        if (this.timer > 10) {
+            this.firing = true;
+        }
+
+        // 🚀 bay thẳng luôn (mượt hơn lerp)
+        this.currentX += this.speed;
+
+        // ra khỏi màn → reset
+        if (
+            this.currentX < -400 ||
+            this.currentX > canvas.width + 400
+        ) {
+            this.reset();
+        }
+    }
+            draw() {
+    if (!this.active) return;
+
+    let w = 90;
+    let h = 22;
+
+    ctx.save();
+    ctx.translate(this.currentX, this.targetY);
+
+    // thân tàu
+    ctx.fillStyle = "#ffcc00";
+    ctx.fillRect(-w/2, -h/2, w, h);
+
+    // đầu tàu
+    ctx.fillStyle = "#ff4444";
+    ctx.beginPath();
+    ctx.moveTo(w/2, 0);
+    ctx.lineTo(w/2 + 40, -18);
+    ctx.lineTo(w/2 + 40, 18);
+    ctx.closePath();
+    ctx.fill();
+
+    // cửa sổ
+    ctx.fillStyle = "white";
+    for (let i = -30; i <= 30; i += 15) {
+        ctx.fillRect(i, -3, 5, 6);
+    }
+
+    ctx.restore();
+}
+}
+        lasers = [new Laser()];
+
+        document.getElementById("start-overlay").addEventListener("touchstart", () => {
+            gameStarted = true; document.getElementById("start-overlay").style.display = "none"; requestAnimationFrame(draw);
+        }, { once: true });
+
+window.addEventListener("touchmove", (e) => {
+    if (!gameStarted || isGameOver || boss.hp <= 0) return;
+    e.preventDefault();
+
+    player.x = e.touches[0].clientX;
+    player.y = e.touches[0].clientY - 60;
+
+    player.x = Math.max(10, Math.min(canvas.width - 10, player.x));
+    player.y = Math.max(10, Math.min(canvas.height - 10, player.y));
+}, { passive: false });
+
+document.getElementById("switch-btn").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (isGameOver) return;
+
+   if (currentPlayer === "reimu") currentPlayer = "marisa";
+else if (currentPlayer === "marisa") currentPlayer = "sakuya";
+else currentPlayer = "reimu";
+
+    document.getElementById("char-name").innerText = currentPlayer.toUpperCase();
+    document.getElementById("char-name").style.color =
+    (currentPlayer === "reimu") ? "#44aaff" :
+    (currentPlayer === "marisa") ? "#ffff00" :
+    "#cccccc";
+});
+
+        document.getElementById("bomb-btn").addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            if (player.bombs > 0 && !isGameOver && bombTimer === 0) {
+                player.bombs--; document.getElementById("bomb-val").innerText = player.bombs;
+                bombTimer = 120; shake = 10; player.invuln = 150;
+                if (currentPlayer === "reimu") { // Fantasy Seal
+                    for (let i = 0; i < 7; i++) {
+                        bombEffects.push(new Bullet(player.x, player.y, (i * Math.PI * 2 / 7), 5, "#ff0088", 12, 60, true));
+                    }
+                }
+
+if (currentPlayer === "sakuya") {
+    timeStop = 120;
+
+    // 💥 bắn dao mọi hướng
+    for (let i = 0; i < 40; i++) {
+        let angle = (i / 40) * Math.PI * 2;
+
+        playerBullets.push(
+            new Bullet(
+                player.x,
+                player.y,
+                angle,
+                10,
+                "#3399ff",
+                3,
+                15,
+                true // 👈 QUAN TRỌNG: homing để hiện dao
+            )
+        );
+    }
+}
+
+                if (navigator.vibrate) navigator.vibrate(200);
+            }
+        });
+
+        function spawnDanmaku() {
+
+if (timeStop > 0) return;
+
+            frame++; let cycle = frame % 2000;
+            if (timeStop <= 0) {
+    boss.x = (canvas.width/2) + Math.sin(frame * 0.01) * (canvas.width/4);
+}
+            if (bombTimer > 0) { enemyBullets = []; return; } // Clear bullets during bomb
+
+if (cycle < 400) {
+    if (frame % 5 === 0) {
+
+    invisiblePhase = false;
+
+        // Tăng lên 14 tia để dày và sát nhau như trong ảnh
+        const totalTia = 35; 
+        for (let i = 0; i < totalTia; i++) {
+            // Góc cố định hoàn toàn, chia đều vòng tròn
+            let angle = i * (Math.PI * 2 / totalTia); 
+            
+            // Màu tím (purple/violet) giống ảnh bạn gửi
+            enemyBullets.push(new Bullet(boss.x, boss.y, angle, 4, "#8000ff"));
+        }
+    }
+
+            } else if (cycle < 800) {
+    if (frame % 40 === 0) {
+
+    invisiblePhase = false;
+
+        for (let i = 0; i < 22; i++) {
+            enemyBullets.push(new Bullet(
+                boss.x,
+                boss.y,
+                (i * Math.PI * 2 / 22),
+                2.5,
+                "#55ffff",
+                6
+            ));
+        }
+    }
+
+} else if (cycle < 1200) {
+
+    invisiblePhase = false;
+
+    const total = 20;
+
+    // trạng thái xoay hiện tại (giữ qua frame)
+    if (typeof this.spinDir === "undefined") {
+        this.spinDir = Math.random() < 0.5 ? 1 : -1;
+        this.spinAngle = 0;
+        this.nextFlip = frame + 6; // ~0.1s (60fps)
+    }
+
+    // mỗi ~0.1s check 10% đổi hướng
+    if (frame >= this.nextFlip) {
+
+        if (Math.random() < 0.1) {
+            this.spinDir *= -1; // đảo chiều xoay
+        }
+
+        this.nextFlip = frame + 6;
+    }
+
+    // xoay tăng dần theo hướng hiện tại
+    this.spinAngle += 0.35 * this.spinDir;
+
+    if (frame % 7 === 0) {
+
+        for (let i = 0; i < total; i++) {
+
+            let angle = this.spinAngle + i * (Math.PI * 2 / total);
+
+            enemyBullets.push(new Bullet(
+                boss.x,
+                boss.y,
+                angle,
+                4,
+                "#8000ff", // giống pattern 1
+                4
+            ));
+        }
+    }
+}
+
+// 🔶 Pattern 4: LASER (1200 → 1600)
+else if (cycle < 1600) {
+
+    invisiblePhase = false;
+
+    if (timeStop <= 0) {
+        lasers.forEach(l => l.update());
+    }
+
+    if (frame % 10 === 0) {
+        enemyBullets.push(new Bullet(
+            boss.x,
+            boss.y,
+            Math.random() * Math.PI * 2,
+            3,
+            "#cc00ff",
+            5
+        ));
+    }
+}
+
+// 🔶 Pattern 5: INVISIBLE (1600 → 1800)
+else if (cycle < 1800) {
+
+    invisiblePhase = true;
+
+    if (frame % 25 === 0) {
+        let base = frame * 0.05;
+
+        for (let i = 0; i < 6; i++) {
+            let ang = base + i * (Math.PI * 2 / 6);
+
+            enemyBullets.push(new Bullet(
+                boss.x,
+                boss.y,
+                ang,
+                2.5,
+                "#aa00ff",
+                5
+            ));
+        }
+    }
+}
+
+// 🔥 Pattern 6: EDGE → CENTER (1800 → 2000)
+else {
+
+    invisiblePhase = false;
+
+    if (frame % 12 === 0) {
+
+        const edge = Math.random();
+
+        let sx, sy;
+
+        // chọn mép màn hình
+        if (edge < 0.25) {
+            sx = 0; sy = Math.random() * canvas.height;
+        } else if (edge < 0.5) {
+            sx = canvas.width; sy = Math.random() * canvas.height;
+        } else if (edge < 0.75) {
+            sx = Math.random() * canvas.width; sy = 0;
+        } else {
+            sx = Math.random() * canvas.width; sy = canvas.height;
+        }
+
+        let ang = Math.atan2(canvas.height/2 - sy, canvas.width/2 - sx);
+
+        enemyBullets.push(new Bullet(
+            sx,
+            sy,
+            ang,
+            4,
+            "#ff66ff",
+            5
+        ));
+    }
+}
+
+if (currentPlayer === "reimu" && frame % 5 === 0) {
+    playerBullets.push(new Bullet(player.x - 8, player.y, -Math.PI/2, 8, "#44aaff", 3, 2, true));
+    playerBullets.push(new Bullet(player.x + 8, player.y, -Math.PI/2, 8, "#44aaff", 3, 2, true));
+} 
+
+else if (currentPlayer === "marisa" && frame % 5 === 0) {
+    playerBullets.push(new Bullet(player.x, player.y, -Math.PI/2, 10, "#ffff00", 8, 6));
+}
+
+else if (currentPlayer === "sakuya" && frame % 10 === 0) {
+    playerBullets.push(
+        new Bullet(player.x, player.y, -Math.PI/2, 14, "#3399ff", 3, 10, true) // 👈 bật homing
+    );
+}
+
+        }
+
+        function update() {
+
+if (timeStop > 0) {
+    timeStop--;
+}
+
+            if (isGameOver || boss.hp <= 0 || !gameStarted) return;
+            if (player.invuln > 0) player.invuln--;
+            if (shake > 0) shake *= 0.9;
+            if (bombTimer > 0) {
+                bombTimer--;
+                if (currentPlayer === "marisa") { boss.hp -= 5; shake = 5; } // Master Spark liên tục gây dam
+            }
+            spawnDanmaku();
+
+lasers.forEach(l => {
+
+let cycle = frame % 2000;
+
+if (cycle >= 1200 && cycle < 1600 && l.active && l.firing && player.invuln === 0) {
+
+        let hitW = 60;
+        let hitH = 25;
+
+        let px = player.x;
+        let py = player.y;
+
+        if (
+            Math.abs(py - l.targetY) < hitH &&
+            Math.abs(px - l.currentX) < hitW
+        ) {
+            isGameOver = true;
+            alert("GAME OVER");
+        }
+    }
+});
+
+            enemyBullets.forEach((b, i) => {
+    if (timeStop <= 0) b.update();
+                if (player.invuln === 0 && Math.hypot(b.x - player.x, b.y - player.y) < player.r + b.radius) { isGameOver = true; alert("GAME OVER"); }
+                if (b.y > canvas.height || b.y < 0 || b.x > canvas.width || b.x < 0) enemyBullets.splice(i, 1);
+            });
+
+            bombEffects.forEach((orb, i) => {
+                orb.update();
+                if (Math.hypot(orb.x - boss.x, orb.y - boss.y) < boss.r + orb.radius) { boss.hp -= orb.damage; bombEffects.splice(i, 1); }
+            });
+
+            playerBullets.forEach((pb, i) => {
+                pb.update();
+                if (Math.hypot(pb.x - boss.x, pb.y - boss.y) < boss.r) { boss.hp -= pb.damage; playerBullets.splice(i, 1); }
+                if (pb.y < 0) playerBullets.splice(i, 1);
+            });
+            document.getElementById("hp-val").innerText = Math.max(0, Math.floor(boss.hp));
+            if (boss.hp <= 0) { alert("VICTORY!"); }
+        }
+
+        function draw() {
+            if (!gameStarted) return;
+            ctx.save(); ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+            ctx.clearRect(-20, -20, canvas.width+40, canvas.height+40);
+            if (timeStop > 0) {
+    ctx.fillStyle = "rgba(200, 200, 255, 0.15)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+            // HP Bar
+            ctx.fillStyle = "#333"; ctx.fillRect(50, 40, canvas.width - 100, 8);
+            ctx.fillStyle = (boss.hp < 1000) ? "red" : "#ff00ff"; ctx.fillRect(50, 40, (canvas.width - 100) * (boss.hp / boss.maxHp), 8);
+
+let cycle = frame % 2000;
+
+if (cycle >= 1200 && cycle < 1600 && bombTimer === 0) {
+    if (timeStop <= 0) {
+        lasers.forEach(l => l.draw());
+    }
+}
+
+            // Master Spark (Marisa)
+            if (bombTimer > 0 && currentPlayer === "marisa") {
+                let sparkW = Math.sin(bombTimer * 0.1) * 20 + 120;
+                let gradient = ctx.createLinearGradient(player.x - sparkW/2, 0, player.x + sparkW/2, 0);
+                gradient.addColorStop(0, "rgba(255,255,200,0)"); gradient.addColorStop(0.5, "white"); gradient.addColorStop(1, "rgba(255,255,200,0)");
+                ctx.fillStyle = gradient; ctx.fillRect(player.x - sparkW/2, 0, sparkW, player.y);
+                ctx.fillStyle = "rgba(255,255,100,0.3)"; ctx.fillRect(player.x - sparkW, 0, sparkW*2, player.y);
+            }
+
+            // Vẽ Boss Yukari (Đảm bảo imgYukari đã được nạp)
+            if (typeof imgYukari !== 'undefined') {
+                ctx.drawImage(imgYukari, boss.x - 60, boss.y - 60, 120, 120);
+            }
+
+if (!invisiblePhase) {
+
+    let img = (currentPlayer === "reimu") ? imgReimu :
+              (currentPlayer === "marisa") ? imgMarisa :
+              imgSakuya;
+
+    if (img && img.complete) {
+        ctx.drawImage(img, player.x - 20, player.y - 20, 40, 40);
+    } else {
+        ctx.fillStyle = (currentPlayer === "reimu") ? "#44aaff" : "#ffff00";
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.visualR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+if (!invisiblePhase) {
+    ctx.fillStyle = "lime"; 
+    ctx.beginPath(); 
+    ctx.arc(player.x, player.y, 3, 0, Math.PI*2);
+    ctx.fill();
+}
+
+            enemyBullets.forEach(b => b.draw());
+            playerBullets.forEach(b => b.draw());
+            bombEffects.forEach(orb => orb.draw());
+
+            
+            
+            ctx.restore(); 
+            update(); 
+            requestAnimationFrame(draw);
+        }
+    </script>
+</body>
+</html>
